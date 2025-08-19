@@ -16,6 +16,10 @@ dist-ssr
 # Tauri binaries (built executables)
 src-tauri/binaries/
 
+# Rust build artifacts
+claudia-server-rust/target/
+**/target/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

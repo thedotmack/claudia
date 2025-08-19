@@ -1,2 +1,0 @@
-fn({type error}, axum::extract::State<ServerState>) -> impl futures_util::Future<Output = Response<Body>> {ws_handler}
-fn({type error}, axum::extract::State<ServerState>) -> impl futures_util::Future<Output = Response<Body>> {ws_handler}: Handler<_, _>
