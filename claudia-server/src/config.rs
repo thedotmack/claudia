@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 /// Server configuration
@@ -101,14 +101,17 @@ impl Default for ServerConfig {
 
 impl ServerConfig {
     /// Load configuration from file or create default
-    pub async fn load(config_file: Option<String>, data_dir: &PathBuf) -> Result<Self> {
+    pub async fn load(config_file: Option<String>, data_dir: &Path) -> Result<Self> {
         if let Some(config_path) = config_file {
             info!("Loading configuration from: {}", config_path);
             Self::load_from_file(config_path).await
         } else {
             let default_config_path = data_dir.join("config.toml");
             if default_config_path.exists() {
-                info!("Loading configuration from: {}", default_config_path.display());
+                info!(
+                    "Loading configuration from: {}",
+                    default_config_path.display()
+                );
                 Self::load_from_file(default_config_path.to_string_lossy().to_string()).await
             } else {
                 info!("No configuration file found, using defaults");
@@ -139,23 +142,27 @@ impl ServerConfig {
     }
 
     /// Get the full output directory path
-    pub fn output_dir(&self, data_dir: &PathBuf) -> PathBuf {
+    pub fn output_dir(&self, data_dir: &Path) -> PathBuf {
         data_dir.join(&self.process.output_directory)
     }
 
     /// Get the full log file path
-    pub fn log_file_path(&self, data_dir: &PathBuf) -> PathBuf {
+    pub fn log_file_path(&self, data_dir: &Path) -> PathBuf {
         data_dir.join(&self.logging.log_file)
     }
 
     /// Validate configuration
     pub fn validate(&self) -> Result<()> {
         if self.server.max_concurrent_sessions == 0 {
-            return Err(anyhow::anyhow!("max_concurrent_sessions must be greater than 0"));
+            return Err(anyhow::anyhow!(
+                "max_concurrent_sessions must be greater than 0"
+            ));
         }
 
         if self.server.session_timeout_seconds == 0 {
-            return Err(anyhow::anyhow!("session_timeout_seconds must be greater than 0"));
+            return Err(anyhow::anyhow!(
+                "session_timeout_seconds must be greater than 0"
+            ));
         }
 
         if self.process.max_output_lines == 0 {
@@ -174,7 +181,7 @@ impl ServerConfig {
     /// Get Claude command arguments with defaults
     pub fn get_claude_args(&self, custom_args: Option<Vec<String>>) -> Vec<String> {
         let mut args = self.claude.default_args.clone();
-        
+
         if let Some(custom) = custom_args {
             // Merge custom args, avoiding duplicates
             for arg in custom {
@@ -183,7 +190,7 @@ impl ServerConfig {
                 }
             }
         }
-        
+
         args
     }
 }

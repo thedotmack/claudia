@@ -2,12 +2,7 @@ use anyhow::Result;
 use log::{debug, info, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    path::PathBuf,
-    process::Command,
-    collections::HashSet,
-};
+use std::{cmp::Ordering, collections::HashSet, path::PathBuf, process::Command};
 
 /// Type of Claude installation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -44,10 +39,16 @@ impl ClaudeBinary {
             // Validate custom path
             let path_buf = PathBuf::from(&path);
             if !path_buf.exists() {
-                return Err(anyhow::anyhow!("Custom Claude path does not exist: {}", path));
+                return Err(anyhow::anyhow!(
+                    "Custom Claude path does not exist: {}",
+                    path
+                ));
             }
             if !path_buf.is_file() {
-                return Err(anyhow::anyhow!("Custom Claude path is not a file: {}", path));
+                return Err(anyhow::anyhow!(
+                    "Custom Claude path is not a file: {}",
+                    path
+                ));
             }
 
             // Try to get version
@@ -359,7 +360,7 @@ async fn find_standard_installations() -> Vec<ClaudeInstallation> {
 /// Get Claude version by running --version command
 async fn get_claude_version(path: &str) -> Result<Option<String>> {
     let output = Command::new(path).arg("--version").output();
-    
+
     match output {
         Ok(output) => {
             if output.status.success() {
@@ -378,13 +379,14 @@ async fn get_claude_version(path: &str) -> Result<Option<String>> {
 /// Extract version string from command output
 fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
     let output_str = String::from_utf8_lossy(stdout);
-    
+
     // Debug log the raw output
     debug!("Raw version output: {:?}", output_str);
-    
+
     // Use regex to directly extract version pattern (e.g., "1.0.41")
-    let version_regex = Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok()?;
-    
+    let version_regex =
+        Regex::new(r"(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?)").ok()?;
+
     if let Some(captures) = version_regex.captures(&output_str) {
         if let Some(version_match) = captures.get(1) {
             let version = version_match.as_str().to_string();
@@ -392,7 +394,7 @@ fn extract_version_from_output(stdout: &[u8]) -> Option<String> {
             return Some(version);
         }
     }
-    
+
     debug!("No version found in output");
     None
 }

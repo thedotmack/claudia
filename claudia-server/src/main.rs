@@ -1,15 +1,14 @@
 use anyhow::Result;
 use clap::{Arg, Command};
-use env_logger;
 use log::{error, info};
 use std::net::SocketAddr;
 
-mod server;
-mod claude;
-mod process;
 mod api;
-mod websocket;
+mod claude;
 mod config;
+mod process;
+mod server;
+mod websocket;
 
 use server::ClaudiaServer;
 
@@ -59,9 +58,9 @@ async fn main() -> Result<()> {
 
     let host = matches.get_one::<String>("host").unwrap();
     let port = matches.get_one::<String>("port").unwrap();
-    let claude_path = matches.get_one::<String>("claude-path").map(|s| s.clone());
-    let data_dir = matches.get_one::<String>("data-dir").map(|s| s.clone());
-    let config_file = matches.get_one::<String>("config").map(|s| s.clone());
+    let claude_path = matches.get_one::<String>("claude-path").cloned();
+    let data_dir = matches.get_one::<String>("data-dir").cloned();
+    let config_file = matches.get_one::<String>("config").cloned();
 
     let addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
@@ -72,7 +71,7 @@ async fn main() -> Result<()> {
 
     // Create and start the server
     let server = ClaudiaServer::new(claude_path, data_dir, config_file).await?;
-    
+
     info!("Server configuration:");
     info!("  - Claude binary: {}", server.claude_path());
     info!("  - Data directory: {}", server.data_dir().display());

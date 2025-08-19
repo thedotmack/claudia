@@ -2,13 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    process::Stdio,
-    sync::Arc,
-    time::Instant,
-};
+use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Instant};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::{Child, Command},
@@ -240,19 +234,23 @@ impl ProcessManager {
         let sessions = self.sessions.read().await;
         if let Some(session_data) = sessions.get(session_id) {
             let mut data = session_data.lock().await;
-            
+
             if let Some(mut child) = data.child.take() {
                 info!("Cancelling session: {}", session_id);
-                
+
                 // Update status
                 data.info.status = SessionStatus::Cancelled;
                 data.info.completed_at = Some(Utc::now());
-                
+
                 // Kill the process
                 match child.kill().await {
                     Ok(_) => {
-                        info!("Successfully killed Claude process for session: {}", session_id);
-                        self.update_stats_on_completion(SessionStatus::Cancelled).await;
+                        info!(
+                            "Successfully killed Claude process for session: {}",
+                            session_id
+                        );
+                        self.update_stats_on_completion(SessionStatus::Cancelled)
+                            .await;
                         Ok(true)
                     }
                     Err(e) => {
@@ -314,7 +312,10 @@ impl ProcessManager {
                 let data = session_data.lock().await;
                 if matches!(
                     data.info.status,
-                    SessionStatus::Completed | SessionStatus::Failed | SessionStatus::Cancelled | SessionStatus::Terminated
+                    SessionStatus::Completed
+                        | SessionStatus::Failed
+                        | SessionStatus::Cancelled
+                        | SessionStatus::Terminated
                 ) {
                     // Only clean up sessions that completed more than 5 minutes ago
                     if let Some(completed_at) = data.info.completed_at {
@@ -357,6 +358,11 @@ impl ProcessManager {
         cleaned
     }
 
+    /// Get the data directory
+    pub fn data_dir(&self) -> &PathBuf {
+        &self.data_dir
+    }
+
     /// Setup environment variables for Claude command
     fn setup_command_environment(&self, cmd: &mut Command) {
         // Inherit essential environment variables
@@ -385,7 +391,11 @@ impl ProcessManager {
     }
 
     /// Monitor session output in background
-    async fn monitor_session_output(&self, session_id: String, output_buffer: Arc<Mutex<Vec<String>>>) {
+    async fn monitor_session_output(
+        &self,
+        session_id: String,
+        output_buffer: Arc<Mutex<Vec<String>>>,
+    ) {
         let sessions = self.sessions.clone();
         let stats = self.stats.clone();
 
@@ -415,12 +425,12 @@ impl ProcessManager {
 
                         while let Ok(Some(line)) = lines.next_line().await {
                             debug!("Session {} stdout: {}", session_id_clone, line);
-                            
+
                             // Store in buffer
                             {
                                 let mut buffer = output_buffer_clone.lock().await;
                                 buffer.push(format!("[STDOUT] {}", line));
-                                
+
                                 // Keep only last 1000 lines to prevent memory issues
                                 if buffer.len() > 1000 {
                                     let drain_count = buffer.len() - 1000;
@@ -441,12 +451,12 @@ impl ProcessManager {
 
                         while let Ok(Some(line)) = lines.next_line().await {
                             warn!("Session {} stderr: {}", session_id_clone, line);
-                            
+
                             // Store in buffer
                             {
                                 let mut buffer = output_buffer_clone.lock().await;
                                 buffer.push(format!("[STDERR] {}", line));
-                                
+
                                 // Keep only last 1000 lines
                                 if buffer.len() > 1000 {
                                     let drain_count = buffer.len() - 1000;
@@ -493,8 +503,11 @@ impl ProcessManager {
                         }
                     }
                     Err(e) => {
-                        error!("Error waiting for session {} to complete: {}", session_id, e);
-                        
+                        error!(
+                            "Error waiting for session {} to complete: {}",
+                            session_id, e
+                        );
+
                         // Update session as failed
                         let sessions = sessions.read().await;
                         if let Some(session_data) = sessions.get(&session_id) {

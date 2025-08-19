@@ -1,21 +1,12 @@
 use anyhow::Result;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
 use log::{error, info};
 use serde_json::{json, Value};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::cors::CorsLayer;
 
 use crate::{
-    api::ApiRoutes,
-    claude::ClaudeBinary,
-    config::ServerConfig,
-    process::ProcessManager,
+    api::ApiRoutes, claude::ClaudeBinary, config::ServerConfig, process::ProcessManager,
     websocket::ws_handler,
 };
 
@@ -55,6 +46,7 @@ impl ClaudiaServer {
 
         // Load configuration
         let config = ServerConfig::load(config_file, &data_dir).await?;
+        config.validate()?;
 
         // Initialize Claude binary detector
         let claude_binary = ClaudeBinary::new(claude_path).await?;
@@ -62,6 +54,11 @@ impl ClaudiaServer {
 
         // Initialize process manager
         let process_manager = ProcessManager::new(data_dir.clone()).await?;
+
+        // Ensure output directory exists
+        let output_dir = config.output_dir(&data_dir);
+        tokio::fs::create_dir_all(&output_dir).await?;
+        info!("Using output directory: {}", output_dir.display());
 
         let state = ServerState {
             claude_binary: Arc::new(claude_binary),
@@ -87,7 +84,7 @@ impl ClaudiaServer {
         let app = self.create_router();
 
         info!("Starting server on {}", addr);
-        
+
         let listener = tokio::net::TcpListener::bind(addr).await?;
         axum::serve(listener, app).await?;
 
@@ -142,12 +139,16 @@ async fn server_info(State(state): State<ServerState>) -> Result<Json<Value>, St
     };
 
     let process_stats = state.process_manager.get_stats().await;
+    let data_dir = state.process_manager.data_dir();
+    let log_file = state.config.log_file_path(data_dir);
 
     Ok(Json(json!({
         "service": "claudia-server",
         "version": "0.1.0",
         "timestamp": chrono::Utc::now().to_rfc3339(),
         "claude": claude_info,
+        "data_directory": data_dir.display().to_string(),
+        "log_file": log_file.display().to_string(),
         "processes": {
             "active_sessions": process_stats.active_sessions,
             "total_sessions": process_stats.total_sessions,

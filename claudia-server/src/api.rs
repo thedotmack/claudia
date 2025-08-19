@@ -57,16 +57,13 @@ impl ApiRoutes {
             .route("/sessions/:id", get(get_session))
             .route("/sessions/:id", delete(cancel_session))
             .route("/sessions/:id/output", get(get_session_output))
-            
             // Claude binary information
             .route("/claude/info", get(get_claude_info))
             .route("/claude/installations", get(list_claude_installations))
             .route("/claude/version", get(get_claude_version))
-            
             // Process management
             .route("/processes/stats", get(get_process_stats))
             .route("/processes/cleanup", post(cleanup_processes))
-            
             // Examples and templates
             .route("/examples", get(get_examples))
             .route("/examples/:name", get(get_example))
@@ -80,8 +77,7 @@ async fn start_session(
 ) -> Result<Json<StartSessionResponse>, StatusCode> {
     info!(
         "Starting new session for project: {}, model: {:?}",
-        req.project_path,
-        req.model
+        req.project_path, req.model
     );
 
     // Validate project path
@@ -90,17 +86,15 @@ async fn start_session(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let model = req.model.unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string());
-    
-    // Build Claude command arguments
-    let mut args = vec![
-        "--output-format".to_string(),
-        "stream-json".to_string(),
-        "--verbose".to_string(),
-        "--dangerously-skip-permissions".to_string(),
-        "--model".to_string(),
-        model.clone(),
-    ];
+    let model = req
+        .model
+        .unwrap_or_else(|| state.config.claude.default_model.clone());
+
+    // Build Claude command arguments using configuration
+    let mut args = state.config.get_claude_args(req.args.clone());
+
+    // Add model
+    args.extend(vec!["--model".to_string(), model.clone()]);
 
     // Add prompt
     args.extend(vec!["-p".to_string(), req.prompt.clone()]);
@@ -157,7 +151,7 @@ async fn list_sessions(
     };
 
     let mut result = sessions;
-    
+
     // Apply limit if specified
     if let Some(limit) = query.limit {
         result.truncate(limit);
@@ -213,7 +207,10 @@ async fn get_session_output(
     Query(query): Query<OutputQuery>,
 ) -> Result<Json<Value>, StatusCode> {
     let output = if let Some(lines) = query.lines {
-        state.process_manager.get_recent_output(&session_id, lines).await
+        state
+            .process_manager
+            .get_recent_output(&session_id, lines)
+            .await
     } else {
         state.process_manager.get_session_output(&session_id).await
     };
@@ -242,11 +239,9 @@ async fn get_session_output(
 }
 
 /// Get Claude binary information
-async fn get_claude_info(
-    State(state): State<ServerState>,
-) -> Json<Value> {
+async fn get_claude_info(State(state): State<ServerState>) -> Json<Value> {
     let installation = state.claude_binary.installation();
-    
+
     Json(json!({
         "path": installation.path,
         "version": installation.version,
@@ -259,7 +254,7 @@ async fn get_claude_info(
 /// List all detected Claude installations
 async fn list_claude_installations() -> Json<Value> {
     let installations = crate::claude::ClaudeBinary::discover_all_installations().await;
-    
+
     Json(json!({
         "installations": installations,
         "count": installations.len()
@@ -267,9 +262,7 @@ async fn list_claude_installations() -> Json<Value> {
 }
 
 /// Get Claude version
-async fn get_claude_version(
-    State(state): State<ServerState>,
-) -> Result<Json<Value>, StatusCode> {
+async fn get_claude_version(State(state): State<ServerState>) -> Result<Json<Value>, StatusCode> {
     match state.claude_binary.get_version().await {
         Ok(version) => Ok(Json(json!({
             "version": version,
@@ -283,19 +276,20 @@ async fn get_claude_version(
 }
 
 /// Get process statistics
-async fn get_process_stats(
-    State(state): State<ServerState>,
-) -> Json<Value> {
+async fn get_process_stats(State(state): State<ServerState>) -> Json<Value> {
     let stats = state.process_manager.get_stats().await;
-    Json(json!(stats))
+    let data_dir = state.process_manager.data_dir();
+
+    Json(json!({
+        "stats": stats,
+        "data_directory": data_dir.display().to_string()
+    }))
 }
 
 /// Cleanup completed processes
-async fn cleanup_processes(
-    State(state): State<ServerState>,
-) -> Json<Value> {
+async fn cleanup_processes(State(state): State<ServerState>) -> Json<Value> {
     let cleaned = state.process_manager.cleanup_completed_sessions().await;
-    
+
     Json(json!({
         "cleaned": cleaned,
         "message": format!("Cleaned up {} completed sessions", cleaned)
@@ -331,9 +325,7 @@ async fn get_examples() -> Json<Value> {
 }
 
 /// Get specific example
-async fn get_example(
-    Path(name): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
+async fn get_example(Path(name): Path<String>) -> Result<Json<Value>, StatusCode> {
     let example = match name.as_str() {
         "basic" => json!({
             "name": "basic",

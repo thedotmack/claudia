@@ -1,0 +1,1 @@
+cargo:rustc-env=MIME_TYPES_GENERATED_PATH=/home/runner/work/claudia/claudia/claudia-server/target/release/build/mime_guess-ea5c45d1e86a8a24/out/mime_types_generated.rs

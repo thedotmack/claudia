@@ -5,7 +5,6 @@ use axum::{
     },
     response::Response,
 };
-use futures_util::{sink::SinkExt, stream::StreamExt};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -18,17 +17,11 @@ use crate::server::ServerState;
 #[serde(tag = "type")]
 pub enum ClientMessage {
     #[serde(rename = "start_session")]
-    StartSession {
-        data: StartSessionData,
-    },
+    StartSession { data: StartSessionData },
     #[serde(rename = "cancel_session")]
-    CancelSession {
-        session_id: String,
-    },
+    CancelSession { session_id: String },
     #[serde(rename = "get_sessions")]
-    GetSessions {
-        active_only: Option<bool>,
-    },
+    GetSessions { active_only: Option<bool> },
     #[serde(rename = "get_output")]
     GetOutput {
         session_id: String,
@@ -55,10 +48,7 @@ pub struct StartSessionData {
 #[serde(tag = "type")]
 pub enum ServerMessage {
     #[serde(rename = "session_started")]
-    SessionStarted {
-        session_id: String,
-        message: String,
-    },
+    SessionStarted { session_id: String, message: String },
     #[serde(rename = "session_output")]
     SessionOutput {
         session_id: String,
@@ -72,9 +62,7 @@ pub enum ServerMessage {
         exit_code: Option<i32>,
     },
     #[serde(rename = "session_cancelled")]
-    SessionCancelled {
-        session_id: String,
-    },
+    SessionCancelled { session_id: String },
     #[serde(rename = "sessions_list")]
     SessionsList {
         sessions: Vec<crate::process::SessionInfo>,
@@ -94,10 +82,7 @@ pub enum ServerMessage {
 }
 
 /// WebSocket handler
-pub async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<ServerState>,
-) -> Response {
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<ServerState>) -> Response {
     ws.on_upgrade(|socket| handle_websocket(socket, state))
 }
 
@@ -107,7 +92,7 @@ async fn handle_websocket(mut socket: WebSocket, state: ServerState) {
 
     // Create channels for communication
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
-    
+
     // Track active sessions for this client
     let mut active_sessions: HashMap<String, mpsc::UnboundedSender<()>> = HashMap::new();
 
@@ -115,7 +100,7 @@ async fn handle_websocket(mut socket: WebSocket, state: ServerState) {
     let welcome = ServerMessage::SessionsList {
         sessions: state.process_manager.list_sessions().await,
     };
-    
+
     if let Err(e) = send_message(&mut socket, welcome).await {
         error!("Failed to send welcome message: {}", e);
         return;
@@ -129,7 +114,7 @@ async fn handle_websocket(mut socket: WebSocket, state: ServerState) {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
                         debug!("Received WebSocket message: {}", text);
-                        
+
                         match serde_json::from_str::<ClientMessage>(&text) {
                             Ok(client_msg) => {
                                 if let Err(e) = handle_client_message(
@@ -173,7 +158,7 @@ async fn handle_websocket(mut socket: WebSocket, state: ServerState) {
                     }
                 }
             }
-            
+
             // Handle outgoing messages to client
             msg = rx.recv() => {
                 match msg {
@@ -237,11 +222,16 @@ async fn handle_start_session(
 ) -> anyhow::Result<()> {
     // Validate project path
     if !std::path::Path::new(&data.project_path).exists() {
-        return Err(anyhow::anyhow!("Project path does not exist: {}", data.project_path));
+        return Err(anyhow::anyhow!(
+            "Project path does not exist: {}",
+            data.project_path
+        ));
     }
 
-    let model = data.model.unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string());
-    
+    let model = data
+        .model
+        .unwrap_or_else(|| "claude-3-5-sonnet-20241022".to_string());
+
     // Build Claude command arguments
     let mut args = vec![
         "--output-format".to_string(),
@@ -291,7 +281,7 @@ async fn handle_start_session(
     // Start monitoring session output
     let (cancel_tx, cancel_rx) = mpsc::unbounded_channel();
     active_sessions.insert(session_id.clone(), cancel_tx);
-    
+
     monitor_session_output(session_id.clone(), state.clone(), tx.clone(), cancel_rx).await;
 
     Ok(())
@@ -307,7 +297,9 @@ async fn handle_cancel_session(
     // Cancel in process manager
     match state.process_manager.cancel_session(&session_id).await {
         Ok(true) => {
-            tx.send(ServerMessage::SessionCancelled { session_id: session_id.clone() })?;
+            tx.send(ServerMessage::SessionCancelled {
+                session_id: session_id.clone(),
+            })?;
         }
         Ok(false) => {
             tx.send(ServerMessage::Error {
@@ -355,7 +347,10 @@ async fn handle_get_output(
     tx: &mpsc::UnboundedSender<ServerMessage>,
 ) -> anyhow::Result<()> {
     let output = if let Some(lines) = lines {
-        state.process_manager.get_recent_output(&session_id, lines).await
+        state
+            .process_manager
+            .get_recent_output(&session_id, lines)
+            .await
     } else {
         state.process_manager.get_session_output(&session_id).await
     };
@@ -386,7 +381,7 @@ async fn monitor_session_output(
     mut cancel_rx: mpsc::UnboundedReceiver<()>,
 ) {
     let session_id_clone = session_id.clone();
-    
+
     tokio::spawn(async move {
         let mut last_line_count = 0;
         let mut monitoring = true;
@@ -408,7 +403,7 @@ async fn monitor_session_output(
                                     line: line.clone(),
                                     timestamp: chrono::Utc::now(),
                                 };
-                                
+
                                 if tx.send(msg).is_err() {
                                     debug!("Client disconnected, stopping output monitoring");
                                     monitoring = false;
@@ -427,7 +422,7 @@ async fn monitor_session_output(
                                 status: format!("{:?}", session_info.status),
                                 exit_code: session_info.exit_code,
                             };
-                            
+
                             let _ = tx.send(msg);
                             monitoring = false;
                         }
@@ -439,15 +434,17 @@ async fn monitor_session_output(
             }
         }
 
-        debug!("Output monitoring finished for session: {}", session_id_clone);
+        debug!(
+            "Output monitoring finished for session: {}",
+            session_id_clone
+        );
     });
 }
 
 /// Send a message via WebSocket
 async fn send_message(socket: &mut WebSocket, message: ServerMessage) -> Result<(), axum::Error> {
-    let json = serde_json::to_string(&message).map_err(|e| {
-        axum::Error::new(format!("Failed to serialize message: {}", e))
-    })?;
-    
+    let json = serde_json::to_string(&message)
+        .map_err(|e| axum::Error::new(format!("Failed to serialize message: {}", e)))?;
+
     socket.send(Message::Text(json)).await
 }
