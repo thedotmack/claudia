@@ -1,0 +1,62 @@
+[package]
+name = "claudia-server"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone server wrapper for Claude Code CLI"
+authors = ["Claudia Team"]
+
+[[bin]]
+name = "claudia-server"
+path = "src/main.rs"
+
+[dependencies]
+# Web server
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+
+# WebSocket support
+tokio-tungstenite = "0.20"
+futures-util = "0.3"
+
+# JSON and serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client for examples
+reqwest = { version = "0.11", features = ["json"] }
+
+# Database
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+# Async/streaming
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Process management
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Command line parsing
+clap = { version = "4.0", features = ["derive"] }
+
+# Configuration
+config = "0.14"
+toml = "0.8"
+
+# File system utilities
+dirs = "5.0"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Regex for version parsing
+regex = "1.10"
